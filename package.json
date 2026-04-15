@@ -1,0 +1,35 @@
+{
+  "name": "forge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.17.0",
+  "description": "Controlled AI agent harness built on pi-coding-agent",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test src/config/schema.test.ts src/core/providers/openai-auth.test.ts src/core/providers/openai-codex-auth.test.ts",
+    "dev": "tsx src/cli.ts",
+    "forge": "tsx src/cli.ts",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@mariozechner/pi-ai": "^0.67.1",
+    "@mariozechner/pi-coding-agent": "^0.67.1",
+    "@sinclair/typebox": "^0.34.41",
+    "better-sqlite3": "^12.2.0",
+    "commander": "^14.0.1",
+    "drizzle-orm": "^0.44.5",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.7.2",
+    "drizzle-kit": "^0.31.5",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3"]
+  }
+}
