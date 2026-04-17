@@ -32,6 +32,7 @@ export function resolveProviderConfig(
             kind: "openai" as const,
             authMode: "api_key" as const,
             model: baseConfig.model,
+            apiKey: undefined,
             apiKeyEnvVar: "OPENAI_API_KEY"
           };
 
@@ -49,6 +50,8 @@ export function resolveProviderConfig(
             kind: "openai-codex" as const,
             authMode: "login" as const,
             model: baseConfig.model,
+            apiKey: undefined,
+            apiKeyEnvVar: "OPENAI_API_KEY",
             originator: "forge"
           };
 
@@ -61,7 +64,10 @@ export function resolveProviderConfig(
   return baseConfig;
 }
 
-export function resolveProviderConfigForRun(config: ForgeConfig, run: RunRecord): ProviderConfig {
+export function resolveProviderConfigForRun(
+  config: ForgeConfig,
+  run: RunRecord
+): ProviderConfig {
   const baseConfig = config.agent.provider;
 
   if (run.provider === "openai") {
@@ -72,6 +78,7 @@ export function resolveProviderConfigForRun(config: ForgeConfig, run: RunRecord)
             kind: "openai" as const,
             authMode: "api_key" as const,
             model: run.model,
+            apiKey: undefined,
             apiKeyEnvVar: "OPENAI_API_KEY"
           };
 
@@ -90,6 +97,8 @@ export function resolveProviderConfigForRun(config: ForgeConfig, run: RunRecord)
             kind: "openai-codex" as const,
             authMode: "login" as const,
             model: run.model,
+            apiKey: undefined,
+            apiKeyEnvVar: "OPENAI_API_KEY",
             originator: "forge"
           };
 
@@ -100,21 +109,34 @@ export function resolveProviderConfigForRun(config: ForgeConfig, run: RunRecord)
     } satisfies OpenAICodexProviderConfig;
   }
 
-  throw new Error(`Unsupported provider recorded on run ${run.id}: ${run.provider}`);
+  throw new Error(
+    `Unsupported provider recorded on run ${run.id}: ${run.provider}`
+  );
 }
 
-export function createAgentProvider(config: ForgeConfig, providerConfig: ProviderConfig) {
+export function createAgentProvider(
+  config: ForgeConfig,
+  providerConfig: ProviderConfig
+) {
   switch (providerConfig.kind) {
     case "openai":
-      return new OpenAIAgentProvider(new OpenAIAuthManager(config));
+      return new OpenAIAgentProvider(config, new OpenAIAuthManager(config));
     case "openai-codex":
-      return new OpenAICodexAgentProvider(new OpenAICodexAuthManager(config));
+      return new OpenAICodexAgentProvider(
+        config,
+        new OpenAICodexAuthManager(config)
+      );
     default:
-      throw new Error(`Unsupported provider: ${(providerConfig as ProviderConfig).kind}`);
+      throw new Error(
+        `Unsupported provider: ${(providerConfig as ProviderConfig).kind}`
+      );
   }
 }
 
-export function createProviderAuthManager(config: ForgeConfig, provider: ProviderKind) {
+export function createProviderAuthManager(
+  config: ForgeConfig,
+  provider: ProviderKind
+) {
   switch (provider) {
     case "openai":
       return new OpenAIAuthManager(config);

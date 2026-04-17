@@ -8,9 +8,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/config/schema.test.ts src/core/providers/openai-auth.test.ts src/core/providers/openai-codex-auth.test.ts",
+    "test": "tsx --test src/config/schema.test.ts src/core/auth-resolver.test.ts src/core/agent-loop.test.ts src/core/providers/openai-auth.test.ts src/core/providers/openai-codex-auth.test.ts",
     "dev": "tsx src/cli.ts",
     "forge": "tsx src/cli.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
@@ -26,10 +28,13 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.7.2",
     "drizzle-kit": "^0.31.5",
+    "prettier": "^3.6.2",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["better-sqlite3"]
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
   }
 }

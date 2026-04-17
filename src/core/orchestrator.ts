@@ -2,12 +2,26 @@ import type { ForgeConfig } from "../config/schema.js";
 import { buildSystemPrompt } from "./personality.js";
 import { ForgeDatabase } from "../db/database.js";
 import { resolveProjectRoot } from "./policy.js";
-import { createAgentProvider, resolveProviderConfig, resolveProviderConfigForRun, type ProviderOverrides } from "./providers/factory.js";
+import {
+  createAgentProvider,
+  resolveProviderConfig,
+  resolveProviderConfigForRun,
+  type ProviderOverrides
+} from "./providers/factory.js";
+import { runAgentLoop } from "./agent-loop.js";
 
 export class ForgeOrchestrator {
-  constructor(private readonly config: ForgeConfig, private readonly database: ForgeDatabase) {}
+  constructor(
+    private readonly config: ForgeConfig,
+    private readonly database: ForgeDatabase
+  ) {}
 
-  async runTask(prompt: string, projectRootOverride?: string, overrides?: ProviderOverrides) {
+  async runTask(
+    prompt: string,
+    projectRootOverride?: string,
+    overrides?: ProviderOverrides,
+    appendPrompt?: string
+  ) {
     const projectRoot = resolveProjectRoot(this.config, projectRootOverride);
     const providerConfig = resolveProviderConfig(this.config, overrides);
     const provider = createAgentProvider(this.config, providerConfig);
@@ -20,23 +34,32 @@ export class ForgeOrchestrator {
       projectRoot
     });
 
-    this.database.appendStep(run.id, "run_started", {
-      prompt,
-      provider: provider.name,
-      providerAuthMode: providerConfig.authMode,
-      projectRoot,
-      model: providerConfig.model
-    });
-
     try {
-      const systemPrompt = await buildSystemPrompt(projectRoot, this.config.agent.systemPromptFiles);
-      const result = await provider.runPrompt({
+      const systemPrompt = await buildSystemPrompt({
+        projectRoot,
+        config: this.config,
+        appendPrompt
+      });
+      this.database.appendStep(run.id, "system_prompt", {
+        content: systemPrompt.text,
+        contributors: systemPrompt.contributors
+      });
+      this.database.appendStep(run.id, "run_started", {
+        prompt,
+        provider: provider.name,
+        providerAuthMode: providerConfig.authMode,
+        projectRoot,
+        model: providerConfig.model
+      });
+
+      const result = await runAgentLoop({
         run,
         prompt,
         projectRoot,
-        systemPrompt,
+        systemPrompt: systemPrompt.text,
         config: this.config,
         providerConfig,
+        provider,
         database: this.database
       });
 
@@ -47,10 +70,14 @@ export class ForgeOrchestrator {
         finalOutput: result.finalText || null
       });
 
-      this.database.appendStep(run.id, result.pauseRequested ? "tool_result" : "run_completed", {
-        finalText: result.finalText,
-        paused: result.pauseRequested
-      });
+      this.database.appendStep(
+        run.id,
+        result.pauseRequested ? "tool_result" : "run_completed",
+        {
+          finalText: result.finalText,
+          paused: result.pauseRequested
+        }
+      );
 
       return this.database.getRun(run.id)!;
     } catch (error) {
@@ -72,8 +99,12 @@ export class ForgeOrchestrator {
     }
 
     const approvals = this.database.listApprovals(runId);
-    const approved = approvals.filter((approval) => approval.status === "approved");
-    const rejected = approvals.filter((approval) => approval.status === "rejected");
+    const approved = approvals.filter(
+      (approval) => approval.status === "approved"
+    );
+    const rejected = approvals.filter(
+      (approval) => approval.status === "rejected"
+    );
 
     if (approved.length === 0 && rejected.length === 0) {
       throw new Error(`Run ${runId} has no resolved approvals to resume from`);
@@ -91,17 +122,26 @@ export class ForgeOrchestrator {
     ].join("\n\n");
 
     this.database.updateRun(runId, { status: "running", errorMessage: null });
-    const systemPrompt = await buildSystemPrompt(run.projectRoot, this.config.agent.systemPromptFiles);
+    const systemPrompt = await buildSystemPrompt({
+      projectRoot: run.projectRoot,
+      config: this.config
+    });
     const providerConfig = resolveProviderConfigForRun(this.config, run);
     const provider = createAgentProvider(this.config, providerConfig);
-    const result = await provider.runPrompt({
+    this.database.appendStep(run.id, "system_prompt", {
+      content: systemPrompt.text,
+      contributors: systemPrompt.contributors,
+      resumed: true
+    });
+    const result = await runAgentLoop({
       run,
       prompt: resumePrompt,
       projectRoot: run.projectRoot,
-      systemPrompt,
+      systemPrompt: systemPrompt.text,
       config: this.config,
       providerConfig,
       database: this.database,
+      provider,
       providerSessionFile: run.providerSessionFile
     });
 
@@ -123,7 +163,11 @@ export class ForgeOrchestrator {
   }
 
   approve(approvalId: string, reason?: string) {
-    const approval = this.database.resolveApproval(approvalId, "approved", reason);
+    const approval = this.database.resolveApproval(
+      approvalId,
+      "approved",
+      reason
+    );
     this.database.appendStep(approval.runId, "approval_resolved", {
       approvalId: approval.id,
       toolName: approval.toolName,
@@ -134,7 +178,11 @@ export class ForgeOrchestrator {
   }
 
   reject(approvalId: string, reason?: string) {
-    const approval = this.database.resolveApproval(approvalId, "rejected", reason);
+    const approval = this.database.resolveApproval(
+      approvalId,
+      "rejected",
+      reason
+    );
     this.database.appendStep(approval.runId, "approval_resolved", {
       approvalId: approval.id,
       toolName: approval.toolName,

@@ -162,10 +162,10 @@ Forge is composed of 5 layers:
 
 - CLI (v1)
 - Commands:
-    - forge run
-    - forge logs
-    - forge approve
-    - forge reject
+  - forge run
+  - forge logs
+  - forge approve
+  - forge reject
 
 ---
 
@@ -328,24 +328,24 @@ Stores:
    forge run "<task>"
 
 2. Forge:
-    - creates run
-    - initializes agent
+   - creates run
+   - initializes agent
 
 3. Agent:
-    - reasons
-    - calls tools
+   - reasons
+   - calls tools
 
 4. Forge:
-    - validates tools
-    - executes safe tools
-    - pauses for guarded tools
+   - validates tools
+   - executes safe tools
+   - pauses for guarded tools
 
 5. User:
-    - approves/rejects
+   - approves/rejects
 
 6. Forge:
-    - executes action
-    - continues run
+   - executes action
+   - continues run
 
 7. Run completes with full trace
 

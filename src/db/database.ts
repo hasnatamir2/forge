@@ -2,11 +2,28 @@ import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
-import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import type { ApprovalRecord, ApprovalStatus, RunRecord, RunStatus, StepRecord, StepType } from "../core/types.js";
+import {
+  drizzle,
+  type BetterSQLite3Database
+} from "drizzle-orm/better-sqlite3";
+import type {
+  ApprovalRecord,
+  ApprovalStatus,
+  RunRecord,
+  RunStatus,
+  StepRecord,
+  StepType
+} from "../core/types.js";
 import type { AuthMode, ProviderKind } from "../config/schema.js";
 import { createId } from "../utils/ids.js";
-import { approvals, type ApprovalRow, runs, type RunRow, steps, type StepRow } from "./schema.js";
+import {
+  approvals,
+  type ApprovalRow,
+  runs,
+  type RunRow,
+  steps,
+  type StepRow
+} from "./schema.js";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -112,16 +129,28 @@ export class ForgeDatabase {
       );
     `);
 
-    this.ensureColumn("runs", "provider_auth_mode", "TEXT NOT NULL DEFAULT 'api_key'");
+    this.ensureColumn(
+      "runs",
+      "provider_auth_mode",
+      "TEXT NOT NULL DEFAULT 'api_key'"
+    );
   }
 
-  private ensureColumn(tableName: string, columnName: string, definition: string): void {
-    const rows = this.sqlite.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{
+  private ensureColumn(
+    tableName: string,
+    columnName: string,
+    definition: string
+  ): void {
+    const rows = this.sqlite
+      .prepare(`PRAGMA table_info(${tableName})`)
+      .all() as Array<{
       name: string;
     }>;
 
     if (!rows.some((row) => row.name === columnName)) {
-      this.sqlite.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition};`);
+      this.sqlite.exec(
+        `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition};`
+      );
     }
   }
 
@@ -148,20 +177,23 @@ export class ForgeDatabase {
       errorMessage: null
     };
 
-    this.orm.insert(runs).values({
-      id: run.id,
-      prompt: run.prompt,
-      status: run.status,
-      model: run.model,
-      provider: run.provider,
-      providerAuthMode: run.providerAuthMode,
-      projectRoot: run.projectRoot,
-      providerSessionFile: run.providerSessionFile,
-      createdAt: run.createdAt,
-      completedAt: run.completedAt,
-      finalOutput: run.finalOutput,
-      errorMessage: run.errorMessage
-    }).run();
+    this.orm
+      .insert(runs)
+      .values({
+        id: run.id,
+        prompt: run.prompt,
+        status: run.status,
+        model: run.model,
+        provider: run.provider,
+        providerAuthMode: run.providerAuthMode,
+        projectRoot: run.projectRoot,
+        providerSessionFile: run.providerSessionFile,
+        createdAt: run.createdAt,
+        completedAt: run.completedAt,
+        finalOutput: run.finalOutput,
+        errorMessage: run.errorMessage
+      })
+      .run();
 
     return run;
   }
@@ -172,10 +204,18 @@ export class ForgeDatabase {
   }
 
   listRuns(): RunRecord[] {
-    return this.orm.select().from(runs).orderBy(desc(runs.createdAt)).all().map(mapRun);
+    return this.orm
+      .select()
+      .from(runs)
+      .orderBy(desc(runs.createdAt))
+      .all()
+      .map(mapRun);
   }
 
-  updateRun(runId: string, patch: Partial<Omit<RunRecord, "id" | "createdAt">>): void {
+  updateRun(
+    runId: string,
+    patch: Partial<Omit<RunRecord, "id" | "createdAt">>
+  ): void {
     const current = this.getRun(runId);
     if (!current) {
       throw new Error(`Run not found: ${runId}`);
@@ -219,14 +259,17 @@ export class ForgeDatabase {
       createdAt: nowIso()
     };
 
-    this.orm.insert(steps).values({
-      id: step.id,
-      runId: step.runId,
-      sequence: step.sequence,
-      type: step.type,
-      payloadJson: step.payloadJson,
-      createdAt: step.createdAt
-    }).run();
+    this.orm
+      .insert(steps)
+      .values({
+        id: step.id,
+        runId: step.runId,
+        sequence: step.sequence,
+        type: step.type,
+        payloadJson: step.payloadJson,
+        createdAt: step.createdAt
+      })
+      .run();
 
     return step;
   }
@@ -261,31 +304,41 @@ export class ForgeDatabase {
       consumedAt: null
     };
 
-    this.orm.insert(approvals).values({
-      id: approval.id,
-      runId: approval.runId,
-      stepId: approval.stepId,
-      toolName: approval.toolName,
-      argsJson: approval.argsJson,
-      status: approval.status,
-      reason: approval.reason,
-      createdAt: approval.createdAt,
-      resolvedAt: approval.resolvedAt,
-      consumedAt: approval.consumedAt
-    }).run();
+    this.orm
+      .insert(approvals)
+      .values({
+        id: approval.id,
+        runId: approval.runId,
+        stepId: approval.stepId,
+        toolName: approval.toolName,
+        argsJson: approval.argsJson,
+        status: approval.status,
+        reason: approval.reason,
+        createdAt: approval.createdAt,
+        resolvedAt: approval.resolvedAt,
+        consumedAt: approval.consumedAt
+      })
+      .run();
 
     return approval;
   }
 
   getApproval(approvalId: string): ApprovalRecord | undefined {
-    const row = this.orm.select().from(approvals).where(eq(approvals.id, approvalId)).get();
+    const row = this.orm
+      .select()
+      .from(approvals)
+      .where(eq(approvals.id, approvalId))
+      .get();
     return row ? mapApproval(row) : undefined;
   }
 
   listApprovals(runId?: string): ApprovalRecord[] {
     const query = this.orm.select().from(approvals);
     const rows = runId
-      ? query.where(eq(approvals.runId, runId)).orderBy(desc(approvals.createdAt)).all()
+      ? query
+          .where(eq(approvals.runId, runId))
+          .orderBy(desc(approvals.createdAt))
+          .all()
       : query.orderBy(desc(approvals.createdAt)).all();
     return rows.map(mapApproval);
   }
@@ -330,7 +383,11 @@ export class ForgeDatabase {
       .run();
   }
 
-  findApprovedApproval(runId: string, toolName: string, argsJson: string): ApprovalRecord | undefined {
+  findApprovedApproval(
+    runId: string,
+    toolName: string,
+    argsJson: string
+  ): ApprovalRecord | undefined {
     const row = this.orm
       .select()
       .from(approvals)

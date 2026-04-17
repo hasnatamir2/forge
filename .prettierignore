@@ -1,0 +1,6 @@
+.forge
+node_modules
+dist
+coverage
+*.db
+pnpm-lock.yaml

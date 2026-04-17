@@ -13,6 +13,7 @@ export const openAIProviderConfigSchema = z.object({
   kind: z.literal("openai"),
   authMode: z.literal("api_key").default("api_key"),
   model: z.string().min(1).default("gpt-5.4"),
+  apiKey: z.string().min(1).optional(),
   apiKeyEnvVar: z.string().min(1).default("OPENAI_API_KEY"),
   baseUrl: z.string().url().optional()
 });
@@ -21,6 +22,8 @@ export const openAICodexProviderConfigSchema = z.object({
   kind: z.literal("openai-codex"),
   authMode: z.literal("login").default("login"),
   model: z.string().min(1).default("gpt-5.4"),
+  apiKey: z.string().min(1).optional(),
+  apiKeyEnvVar: z.string().min(1).default("OPENAI_API_KEY"),
   originator: z.string().min(1).default("forge")
 });
 
@@ -53,6 +56,8 @@ export const forgeConfigSchema = z.object({
 export type ProviderKind = z.infer<typeof providerKindSchema>;
 export type AuthMode = z.infer<typeof authModeSchema>;
 export type OpenAIProviderConfig = z.infer<typeof openAIProviderConfigSchema>;
-export type OpenAICodexProviderConfig = z.infer<typeof openAICodexProviderConfigSchema>;
+export type OpenAICodexProviderConfig = z.infer<
+  typeof openAICodexProviderConfigSchema
+>;
 export type ProviderConfig = z.infer<typeof providerConfigSchema>;
 export type ForgeConfig = z.infer<typeof forgeConfigSchema>;

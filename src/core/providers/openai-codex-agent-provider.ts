@@ -1,10 +1,22 @@
-import { complete, getModel, type Message, type ToolCall } from "@mariozechner/pi-ai";
+import {
+  complete,
+  getModel,
+  type Message,
+  type ToolCall
+} from "@mariozechner/pi-ai";
 import type { ForgeConfig, ProviderConfig } from "../../config/schema.js";
-import type { AgentProvider, ProviderRunResult } from "../types.js";
-import { createToolRuntime } from "../../tools/index.js";
+import type {
+  AgentConversationItem,
+  AgentProvider,
+  ProviderTurnResult,
+  ResolvedAuthContext
+} from "../types.js";
 import { OpenAICodexAuthManager } from "./openai-codex-auth.js";
+import { resolveAuth } from "../auth-resolver.js";
 
-function mapThinkingLevel(thinkingLevel: ForgeConfig["agent"]["thinkingLevel"]) {
+function mapThinkingLevel(
+  thinkingLevel: ForgeConfig["agent"]["thinkingLevel"]
+) {
   switch (thinkingLevel) {
     case "off":
       return "none";
@@ -20,126 +32,151 @@ function mapThinkingLevel(thinkingLevel: ForgeConfig["agent"]["thinkingLevel"]) 
 export class OpenAICodexAgentProvider implements AgentProvider {
   readonly name = "openai-codex";
 
-  constructor(private readonly authManager: OpenAICodexAuthManager) {}
+  constructor(
+    private readonly config: ForgeConfig,
+    private readonly authManager: OpenAICodexAuthManager
+  ) {}
 
-  async runPrompt(input: {
+  async resolveAuth(input: {
+    projectRoot: string;
+    providerConfig: ProviderConfig;
+  }): Promise<ResolvedAuthContext> {
+    return resolveAuth(input.providerConfig, this.config, input.projectRoot);
+  }
+
+  async completeTurn(input: {
     run: {
       id: string;
       providerSessionFile: string | null;
     };
-    prompt: string;
     projectRoot: string;
     systemPrompt: string;
     config: ForgeConfig;
     providerConfig: ProviderConfig;
-    database: import("../../db/database.js").ForgeDatabase;
-    providerSessionFile?: string | null;
-  }): Promise<ProviderRunResult> {
+    auth: ResolvedAuthContext;
+    conversation: AgentConversationItem[];
+    tools: import("../types.js").ToolDefinition[];
+  }): Promise<ProviderTurnResult> {
     if (input.providerConfig.kind !== "openai-codex") {
       throw new Error(
         `OpenAICodexAgentProvider cannot handle provider ${input.providerConfig.kind}`
       );
     }
 
-    const apiKey = await this.authManager.resolveApiKey(input.projectRoot, input.providerConfig);
+    const apiKey = await this.authManager.resolveApiKeyFromAuth(
+      input.projectRoot,
+      input.auth
+    );
     const model = getModel("openai-codex", input.providerConfig.model as never);
     if (!model) {
-      throw new Error(`OpenAI Codex model is not available: ${input.providerConfig.model}`);
+      throw new Error(
+        `OpenAI Codex model is not available: ${input.providerConfig.model}`
+      );
     }
 
-    const toolRuntime = createToolRuntime({
-      runId: input.run.id,
-      projectRoot: input.projectRoot,
-      config: input.config,
-      database: input.database
-    });
-
-    const messages: Message[] = [
+    const assistantMessage = await complete(
+      model,
       {
-        role: "user",
-        content: input.prompt,
-        timestamp: Date.now()
+        systemPrompt: input.systemPrompt,
+        messages: toPiMessages(input.conversation),
+        tools: input.tools.map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.inputSchema
+        }))
+      },
+      {
+        apiKey,
+        reasoningEffort: mapThinkingLevel(input.config.agent.thinkingLevel),
+        sessionId: input.run.id
       }
-    ];
-    let finalText = "";
+    );
 
-    for (let iteration = 0; iteration < 24; iteration += 1) {
-      const assistantMessage = await complete(
-        model,
-        {
-          systemPrompt: input.systemPrompt,
-          messages,
-          tools: toolRuntime.toolDefinitions.map((tool) => ({
-            name: tool.name,
-            description: tool.description,
-            parameters: tool.inputSchema
-          }))
-        },
-        {
-          apiKey,
-          reasoningEffort: mapThinkingLevel(input.config.agent.thinkingLevel),
-          sessionId: input.run.id
-        }
-      );
-
-      messages.push(assistantMessage);
-
-      const assistantText = assistantMessage.content
-        .filter((content): content is { type: "text"; text: string } =>
-          content.type === "text"
+    return {
+      assistantMessage: assistantMessage.content
+        .filter(
+          (content): content is { type: "text"; text: string } =>
+            content.type === "text"
         )
         .map((content) => content.text)
         .join("\n")
-        .trim();
+        .trim(),
+      toolCalls: assistantMessage.content
+        .filter((content): content is ToolCall => content.type === "toolCall")
+        .map((toolCall) => ({
+          id: toolCall.id,
+          name: toolCall.name,
+          arguments: toolCall.arguments
+        })),
+      finishReason: assistantMessage.content.some(
+        (content) => content.type === "toolCall"
+      )
+        ? "tool_calls"
+        : "stop",
+      providerSessionFile: null
+    };
+  }
+}
 
-      if (assistantText) {
-        finalText = [finalText, assistantText].filter(Boolean).join("\n").trim();
-        input.database.appendStep(input.run.id, "agent_message", {
-          source: "assistant",
-          eventType: "message",
-          content: assistantText
-        });
-      }
+function toPiMessages(conversation: AgentConversationItem[]): Message[] {
+  const messages: Message[] = [];
+  let pendingAssistantContent: Array<
+    | { type: "text"; text: string }
+    | { type: "toolCall"; id: string; name: string; arguments: unknown }
+  > = [];
 
-      const toolCalls = assistantMessage.content.filter(
-        (content): content is ToolCall => content.type === "toolCall"
-      );
-
-      if (toolCalls.length === 0) {
-        return {
-          providerSessionFile: null,
-          finalText,
-          pauseRequested: toolRuntime.state.pauseRequested
-        };
-      }
-
-      for (const toolCall of toolCalls) {
-        const toolResult = await toolRuntime.executeToolCall(
-          toolCall.id,
-          toolCall.name,
-          toolCall.arguments
-        );
-
-        messages.push({
-          role: "toolResult",
-          toolCallId: toolCall.id,
-          toolName: toolCall.name,
-          content: [{ type: "text", text: toolResult.content }],
-          details: toolResult.details,
-          isError: false,
-          timestamp: Date.now()
-        });
-
-        if (toolResult.blocked) {
-          return {
-            providerSessionFile: null,
-            finalText,
-            pauseRequested: true
-          };
-        }
-      }
+  const flushAssistant = () => {
+    if (pendingAssistantContent.length === 0) {
+      return;
     }
 
-    throw new Error("OpenAI Codex provider exceeded the maximum tool-iteration limit.");
+    messages.push({
+      role: "assistant",
+      content: pendingAssistantContent,
+      timestamp: Date.now()
+    } as Message);
+    pendingAssistantContent = [];
+  };
+
+  for (const item of conversation) {
+    switch (item.type) {
+      case "user":
+        flushAssistant();
+        messages.push({
+          role: "user",
+          content: item.content,
+          timestamp: Date.now()
+        } as Message);
+        break;
+      case "assistant":
+        pendingAssistantContent.push({
+          type: "text",
+          text: item.content
+        });
+        break;
+      case "tool_call":
+        pendingAssistantContent.push({
+          type: "toolCall",
+          id: item.id,
+          name: item.name,
+          arguments: item.arguments
+        });
+        break;
+      case "tool_result":
+        flushAssistant();
+        messages.push({
+          role: "toolResult",
+          toolCallId: item.toolCallId,
+          toolName: item.toolName,
+          content: [{ type: "text", text: item.content }],
+          details: item.meta,
+          isError: item.isError,
+          timestamp: Date.now()
+        } as Message);
+        break;
+    }
   }
+
+  flushAssistant();
+  return messages;
 }

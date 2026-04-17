@@ -46,8 +46,8 @@ test("forge config accepts openai-codex login provider mode", () => {
     }
   });
 
-    assert.equal(parsed.agent.provider.kind, "openai-codex");
-    assert.equal(parsed.agent.provider.authMode, "login");
+  assert.equal(parsed.agent.provider.kind, "openai-codex");
+  assert.equal(parsed.agent.provider.authMode, "login");
 });
 
 test("forge config rejects unknown auth modes", () => {

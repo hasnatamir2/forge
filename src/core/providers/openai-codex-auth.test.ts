@@ -15,6 +15,7 @@ test("openai-codex login stores oauth credentials and resolves an access token",
           kind: "openai-codex",
           authMode: "login",
           model: "gpt-5.4",
+          apiKeyEnvVar: "OPENAI_API_KEY",
           originator: "forge"
         },
         thinkingLevel: "medium",
@@ -48,6 +49,7 @@ test("openai-codex login stores oauth credentials and resolves an access token",
         kind: "openai-codex",
         authMode: "login",
         model: "gpt-5.4",
+        apiKeyEnvVar: "OPENAI_API_KEY",
         originator: "forge"
       },
       false
@@ -57,6 +59,7 @@ test("openai-codex login stores oauth credentials and resolves an access token",
       kind: "openai-codex",
       authMode: "login",
       model: "gpt-5.4",
+      apiKeyEnvVar: "OPENAI_API_KEY",
       originator: "forge"
     });
 
@@ -67,6 +70,7 @@ test("openai-codex login stores oauth credentials and resolves an access token",
         kind: "openai-codex",
         authMode: "login",
         model: "gpt-5.4",
+        apiKeyEnvVar: "OPENAI_API_KEY",
         originator: "forge"
       })
     );

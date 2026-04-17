@@ -2,7 +2,10 @@ import { existsSync } from "node:fs";
 import { resolve, relative, sep } from "node:path";
 import type { ForgeConfig } from "../config/schema.js";
 
-export function resolveProjectRoot(config: ForgeConfig, projectRootOverride?: string): string {
+export function resolveProjectRoot(
+  config: ForgeConfig,
+  projectRootOverride?: string
+): string {
   if (projectRootOverride) {
     return resolve(projectRootOverride);
   }
@@ -14,7 +17,10 @@ export function resolveProjectRoot(config: ForgeConfig, projectRootOverride?: st
   throw new Error("projectRoot is required when projectRootMode is 'explicit'");
 }
 
-export function assertWithinProjectRoot(projectRoot: string, targetPath: string): string {
+export function assertWithinProjectRoot(
+  projectRoot: string,
+  targetPath: string
+): string {
   const resolvedRoot = resolve(projectRoot);
   const resolvedTarget = resolve(resolvedRoot, targetPath);
   const relativePath = relative(resolvedRoot, resolvedTarget);
@@ -30,7 +36,10 @@ export function assertWithinProjectRoot(projectRoot: string, targetPath: string)
   return resolvedTarget;
 }
 
-export function ensureFileParentAllowed(projectRoot: string, targetPath: string): string {
+export function ensureFileParentAllowed(
+  projectRoot: string,
+  targetPath: string
+): string {
   return assertWithinProjectRoot(projectRoot, targetPath);
 }
 

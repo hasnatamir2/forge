@@ -162,7 +162,10 @@ pnpm forge -- run "Review this repo for dead code." --provider openai
 
 Forge currently exposes these commands:
 
+- `forge` (starts the interactive shell)
 - `forge run <task>`
+- `forge run` (starts the interactive shell)
+- `forge shell`
 - `forge resume <runId>`
 - `forge approve <approvalId>`
 - `forge reject <approvalId>`
@@ -181,6 +184,10 @@ Common options:
 Examples:
 
 ```bash
+pnpm forge --
+pnpm forge -- shell
+pnpm forge -- run
+pnpm forge -- run --interactive "Inspect the repo, then wait for my follow-up."
 pnpm forge -- runs
 pnpm forge -- approvals --run <run-id>
 pnpm forge -- run "Check the repository status and summarize the diff." --project-root /path/to/project
@@ -201,23 +208,23 @@ export default defineConfig({
       kind: "openai-codex",
       authMode: "login",
       model: "gpt-5.4",
-      originator: "forge",
+      originator: "forge"
     },
     thinkingLevel: "medium",
-    systemPromptFiles: ["./prompts/personality.md", "./AGENT.md"],
+    systemPromptFiles: ["./prompts/personality.md", "./AGENT.md"]
   },
   runtime: {
     stateDir: ".forge",
-    sqlitePath: ".forge/forge.db",
+    sqlitePath: ".forge/forge.db"
   },
   permissions: {
     projectRootMode: "cwd",
     commandAllowlist: [
       { command: "git", argsPrefix: ["status"] },
       { command: "git", argsPrefix: ["diff"] },
-      { command: "pnpm", argsPrefix: ["test"] },
-    ],
-  },
+      { command: "pnpm", argsPrefix: ["test"] }
+    ]
+  }
 });
 ```
 
@@ -232,19 +239,19 @@ export default defineConfig({
       kind: "openai",
       authMode: "api_key",
       model: "gpt-5.4",
-      apiKeyEnvVar: "OPENAI_API_KEY",
+      apiKeyEnvVar: "OPENAI_API_KEY"
     },
     thinkingLevel: "medium",
-    systemPromptFiles: ["./prompts/personality.md", "./AGENT.md"],
+    systemPromptFiles: ["./prompts/personality.md", "./AGENT.md"]
   },
   runtime: {
     stateDir: ".forge",
-    sqlitePath: ".forge/forge.db",
+    sqlitePath: ".forge/forge.db"
   },
   permissions: {
     projectRootMode: "cwd",
-    commandAllowlist: [],
-  },
+    commandAllowlist: []
+  }
 });
 ```
 

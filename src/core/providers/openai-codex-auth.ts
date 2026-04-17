@@ -5,19 +5,29 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { z } from "zod";
-import { getOAuthApiKey, loginOpenAICodex, type OAuthCredentials } from "@mariozechner/pi-ai/oauth";
-import type { ForgeConfig, OpenAICodexProviderConfig } from "../../config/schema.js";
+import {
+  getOAuthApiKey,
+  loginOpenAICodex,
+  type OAuthCredentials
+} from "@mariozechner/pi-ai/oauth";
+import type {
+  ForgeConfig,
+  OpenAICodexProviderConfig
+} from "../../config/schema.js";
+import type { ResolvedAuthContext } from "../types.js";
 
 const OPENAI_CODEX_PROVIDER_ID = "openai-codex";
 
 const storedCredentialsSchema = z.record(
   z.string(),
-  z.object({
-    access: z.string().min(1),
-    refresh: z.string().min(1),
-    expires: z.number(),
-    accountId: z.string().min(1).optional()
-  }).catchall(z.unknown())
+  z
+    .object({
+      access: z.string().min(1),
+      refresh: z.string().min(1),
+      expires: z.number(),
+      accountId: z.string().min(1).optional()
+    })
+    .catchall(z.unknown())
 );
 
 type OAuthApiKeyResolver = typeof getOAuthApiKey;
@@ -30,9 +40,41 @@ export class OpenAICodexAuthManager {
     private readonly oauthApiKeyResolver: OAuthApiKeyResolver = getOAuthApiKey
   ) {}
 
-  async resolveApiKey(projectRoot: string, providerConfig: OpenAICodexProviderConfig): Promise<string> {
+  async resolveApiKey(
+    projectRoot: string,
+    providerConfig: OpenAICodexProviderConfig
+  ): Promise<string> {
+    if (providerConfig.apiKey) {
+      return providerConfig.apiKey;
+    }
+
+    const envKey = process.env[providerConfig.apiKeyEnvVar];
+    if (envKey) {
+      return envKey;
+    }
+
     const credentialsMap = await this.readCredentials(projectRoot);
-    const resolved = await this.oauthApiKeyResolver(OPENAI_CODEX_PROVIDER_ID, credentialsMap);
+    return this.resolveApiKeyFromAuth(projectRoot, {
+      kind: "session",
+      value: credentialsMap,
+      source: "state_file",
+      path: this.getCredentialsPath(projectRoot)
+    });
+  }
+
+  async resolveApiKeyFromAuth(
+    projectRoot: string,
+    auth: ResolvedAuthContext
+  ): Promise<string> {
+    if (auth.kind === "api_key") {
+      return auth.value as string;
+    }
+
+    const credentialsMap = auth.value as Record<string, OAuthCredentials>;
+    const resolved = await this.oauthApiKeyResolver(
+      OPENAI_CODEX_PROVIDER_ID,
+      credentialsMap
+    );
 
     if (!resolved) {
       throw new Error(
@@ -50,13 +92,19 @@ export class OpenAICodexAuthManager {
     return resolved.apiKey;
   }
 
-  async login(projectRoot: string, providerConfig: OpenAICodexProviderConfig, openBrowser = true): Promise<string> {
+  async login(
+    projectRoot: string,
+    providerConfig: OpenAICodexProviderConfig,
+    openBrowser = true
+  ): Promise<string> {
     await mkdir(this.getAuthDirectory(projectRoot), { recursive: true });
 
     const credentials = await this.loginFn({
       originator: providerConfig.originator,
       onAuth: ({ url, instructions }) => {
-        output.write(`${instructions ?? "Open this URL to authenticate:"}\n${url}\n`);
+        output.write(
+          `${instructions ?? "Open this URL to authenticate:"}\n${url}\n`
+        );
         if (openBrowser) {
           this.tryOpenBrowser(url);
         }
@@ -92,10 +140,17 @@ export class OpenAICodexAuthManager {
   }
 
   private getAuthDirectory(projectRoot: string): string {
-    return resolve(projectRoot, this.config.runtime.stateDir, "auth", OPENAI_CODEX_PROVIDER_ID);
+    return resolve(
+      projectRoot,
+      this.config.runtime.stateDir,
+      "auth",
+      OPENAI_CODEX_PROVIDER_ID
+    );
   }
 
-  private async readCredentials(projectRoot: string): Promise<Record<string, OAuthCredentials>> {
+  public async readCredentials(
+    projectRoot: string
+  ): Promise<Record<string, OAuthCredentials>> {
     const credentialsPath = this.getCredentialsPath(projectRoot);
     if (!existsSync(credentialsPath)) {
       return {};
@@ -110,10 +165,14 @@ export class OpenAICodexAuthManager {
     credentials: Record<string, OAuthCredentials>
   ): Promise<void> {
     await mkdir(this.getAuthDirectory(projectRoot), { recursive: true });
-    await writeFile(this.getCredentialsPath(projectRoot), JSON.stringify(credentials, null, 2), {
-      encoding: "utf8",
-      mode: 0o600
-    });
+    await writeFile(
+      this.getCredentialsPath(projectRoot),
+      JSON.stringify(credentials, null, 2),
+      {
+        encoding: "utf8",
+        mode: 0o600
+      }
+    );
   }
 
   private tryOpenBrowser(url: string): void {
@@ -123,7 +182,8 @@ export class OpenAICodexAuthManager {
         : process.platform === "win32"
           ? "cmd"
           : "xdg-open";
-    const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
+    const args =
+      process.platform === "win32" ? ["/c", "start", "", url] : [url];
 
     try {
       const child = spawn(command, args, {

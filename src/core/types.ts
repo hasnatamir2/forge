@@ -1,13 +1,23 @@
-import type { AuthMode, ForgeConfig, ProviderConfig, ProviderKind } from "../config/schema.js";
+import type {
+  AuthMode,
+  ForgeConfig,
+  ProviderConfig,
+  ProviderKind
+} from "../config/schema.js";
 import type { ForgeDatabase } from "../db/database.js";
 import type { TSchema } from "@sinclair/typebox";
 import type { ZodType } from "zod";
 
-export type RunStatus = "running" | "awaiting_approval" | "completed" | "failed";
+export type RunStatus =
+  | "running"
+  | "awaiting_approval"
+  | "completed"
+  | "failed";
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "consumed";
 export type RiskLevel = "safe" | "guarded";
 
 export type StepType =
+  | "system_prompt"
   | "run_started"
   | "agent_message"
   | "tool_call_requested"
@@ -57,9 +67,9 @@ export interface ApprovalRecord {
 }
 
 export interface ForgeToolResult {
+  status: "ok" | "error";
   content: string;
-  details?: unknown;
-  isError?: boolean;
+  meta?: unknown;
 }
 
 export interface ForgeToolContext {
@@ -80,24 +90,78 @@ export interface ForgeTool<TArgs> {
   execute(args: TArgs, context: ForgeToolContext): Promise<ForgeToolResult>;
 }
 
-export interface ProviderRunResult {
-  providerSessionFile: string | null;
-  finalText: string;
-  pauseRequested: boolean;
+export interface ProviderUsage {
+  tokensIn?: number;
+  tokensOut?: number;
+}
+
+export interface AgentToolCall {
+  id: string;
+  name: string;
+  arguments: unknown;
+}
+
+export type AgentConversationItem =
+  | {
+      type: "user";
+      content: string;
+    }
+  | {
+      type: "assistant";
+      content: string;
+    }
+  | {
+      type: "tool_call";
+      id: string;
+      name: string;
+      arguments: unknown;
+    }
+  | {
+      type: "tool_result";
+      toolCallId: string;
+      toolName: string;
+      content: string;
+      meta?: unknown;
+      isError: boolean;
+    };
+
+export interface ResolvedAuthContext {
+  kind: "api_key" | "session";
+  value: string | Record<string, unknown>;
+  source: "config" | "env" | "state_file";
+  path?: string;
+}
+
+export interface ProviderTurnResult {
+  assistantMessage: string;
+  toolCalls: AgentToolCall[];
+  finishReason?: string;
+  providerSessionFile?: string | null;
+  usage?: ProviderUsage;
 }
 
 export interface AgentProvider {
   name: ProviderKind;
-  runPrompt(input: {
+  resolveAuth(input: {
+    projectRoot: string;
+    providerConfig: ProviderConfig;
+  }): Promise<ResolvedAuthContext>;
+  completeTurn(input: {
     run: RunRecord;
-    prompt: string;
     projectRoot: string;
     systemPrompt: string;
     config: ForgeConfig;
     providerConfig: ProviderConfig;
-    database: ForgeDatabase;
-    providerSessionFile?: string | null;
-  }): Promise<ProviderRunResult>;
+    auth: ResolvedAuthContext;
+    conversation: AgentConversationItem[];
+    tools: ToolDefinition[];
+  }): Promise<ProviderTurnResult>;
+}
+
+export interface AgentLoopResult {
+  providerSessionFile: string | null;
+  finalText: string;
+  pauseRequested: boolean;
 }
 
 export interface ToolRuntimeState {
@@ -111,9 +175,9 @@ export interface ToolDefinition {
 }
 
 export interface ToolExecutionResult {
+  status: "ok" | "error" | "blocked";
   content: string;
-  details?: unknown;
-  blocked?: boolean;
+  meta?: unknown;
 }
 
 export interface ToolRuntime {
