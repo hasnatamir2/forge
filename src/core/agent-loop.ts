@@ -8,8 +8,6 @@ import type {
   RunRecord
 } from "./types.js";
 
-const MAX_TURNS = 24;
-
 export async function runAgentLoop(input: {
   run: RunRecord;
   prompt: string;
@@ -40,8 +38,10 @@ export async function runAgentLoop(input: {
   ];
   let finalText = "";
   let providerSessionFile = input.providerSessionFile ?? null;
+  let iteration = 0;
 
-  for (let iteration = 0; iteration < MAX_TURNS; iteration += 1) {
+  while (true) {
+    iteration += 1;
     const startedAt = Date.now();
     const turn = await input.provider.completeTurn({
       run: input.run,
@@ -73,7 +73,7 @@ export async function runAgentLoop(input: {
       durationMs: Date.now() - startedAt,
       tokensIn: turn.usage?.tokensIn ?? null,
       tokensOut: turn.usage?.tokensOut ?? null,
-      iteration: iteration + 1
+      iteration
     });
 
     if (assistantMessage) {
@@ -127,8 +127,4 @@ export async function runAgentLoop(input: {
       }
     }
   }
-
-  throw new Error(
-    `${input.provider.name} provider exceeded the maximum tool-iteration limit.`
-  );
 }

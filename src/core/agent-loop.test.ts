@@ -229,3 +229,63 @@ test("agent loop pauses when a guarded tool needs approval", async () => {
     await rm(projectRoot, { recursive: true, force: true });
   }
 });
+
+test("agent loop can continue past 24 turns without a hard stop", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "forge-loop-unbounded-"));
+  const config = createConfig();
+  const database = new ForgeDatabase(join(projectRoot, ".forge", "forge.db"));
+  const run = database.createRun({
+    prompt: "keep going",
+    status: "running",
+    model: "gpt-5.4",
+    provider: "openai",
+    providerAuthMode: "api_key",
+    projectRoot
+  });
+
+  await writeFile(join(projectRoot, "README.md"), "hello\n", "utf8");
+
+  try {
+    const provider = new FakeProvider([
+      ...Array.from({ length: 25 }, (_, index) => ({
+        assistantMessage: `step ${index + 1}`,
+        toolCalls: [
+          {
+            id: `tool-${index + 1}`,
+            name: "read_file",
+            arguments: {
+              path: "README.md"
+            }
+          }
+        ],
+        finishReason: "tool_calls"
+      })),
+      {
+        assistantMessage: "done",
+        toolCalls: [],
+        finishReason: "stop"
+      }
+    ]);
+
+    const result = await runAgentLoop({
+      run,
+      prompt: "keep going",
+      projectRoot,
+      systemPrompt: "system",
+      config,
+      providerConfig: config.agent.provider,
+      provider,
+      database
+    });
+
+    assert.equal(result.pauseRequested, false);
+    assert.match(result.finalText, /step 25\ndone$/);
+    assert.equal(
+      database.listSteps(run.id).filter((step) => step.type === "agent_message")
+        .length,
+      26
+    );
+  } finally {
+    await rm(projectRoot, { recursive: true, force: true });
+  }
+});
